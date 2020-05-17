@@ -10,7 +10,6 @@ require (
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/onsi/ginkgo v1.10.1 // indirect
 	github.com/onsi/gomega v1.7.0 // indirect
-	github.com/polisgo2020/search-bolotrush v0.0.0-20200424140158-8a689b53e64e
 	github.com/rs/zerolog v1.18.0
 	github.com/urfave/cli/v2 v2.2.0
 	golang.org/x/crypto v0.0.0-20200221231518-2aa609cf4a9d // indirect

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/polisgo2020/search-bolotrush/index"
+	"github.com/bolotrush/searcher/index"
 
 	zl "github.com/rs/zerolog/log"
 )

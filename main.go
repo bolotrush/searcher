@@ -3,14 +3,13 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/bolotrush/searcher/index"
 	"log"
 	"os"
 	_ "strconv"
 	_ "strings"
 
 	"github.com/rs/zerolog"
-
-	"github.com/bolotrush/searcher/index"
 
 	"github.com/bolotrush/searcher/models/db"
 
