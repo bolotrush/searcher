@@ -1,7 +1,6 @@
 package files
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -21,9 +20,9 @@ type FileControl struct {
 	dataChan chan index.Token
 }
 
-func NewFileControl() *FileControl {
+func NewFileControl() FileControl {
 
-	return &FileControl{
+	return FileControl{
 		Mutex:    &sync.Mutex{},
 		Wg:       &sync.WaitGroup{},
 		dataChan: make(chan index.Token),
@@ -93,7 +92,7 @@ func (fc *FileControl) asyncRead(directory string, filename string) {
 
 }
 
-func (fc *FileControl) WriteIndex(indexMap map[string]string) error {
+func (fc *FileControl) WriteIndex(indexMap index.InvMap) error {
 	file, err := os.Create("out.txt")
 	if err != nil {
 		return err
