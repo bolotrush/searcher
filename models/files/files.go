@@ -1,83 +1,117 @@
 package files
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/bolotrush/searcher/index"
 
 	zl "github.com/rs/zerolog/log"
 )
 
-func IndexBuilder(path string /*InvertedIndexMap *index.InvMap*/) (index.InvMap, error) {
-	indexMap := &index.InvMap{}
+type FileControl struct {
+	Mutex    *sync.Mutex
+	Wg       *sync.WaitGroup
+	dataChan chan index.Token
+}
 
-	channel := make(chan index.StraightIndex)
-	wg := &sync.WaitGroup{}
-	mutex := &sync.Mutex{}
-	go func(channel chan index.StraightIndex, indexMap *index.InvMap) {
-		for input := range channel {
-			input.Wg.Add(1)
-			input.Mutex.Lock()
-			indexMap.InvertIndex(input.Text, input.Filename)
-			input.Mutex.Unlock()
-			input.Wg.Done()
-		}
-	}(channel, indexMap)
+func NewFileControl() *FileControl {
 
-	files, err := ioutil.ReadDir(path)
+	return &FileControl{
+		Mutex:    &sync.Mutex{},
+		Wg:       &sync.WaitGroup{},
+		dataChan: make(chan index.Token),
+	}
+
+}
+func IndexBuild(directory string) (*index.InvMap, error) {
+
+	indexMap := index.NewInvMap()
+	fc := NewFileControl()
+
+	go fc.listen(&indexMap)
+
+	files, err := ioutil.ReadDir(directory)
 	if err != nil {
 		return nil, err
 	}
 
-	wg.Add(len(files))
 	for _, file := range files {
-		go asyncRead(wg, path, file, mutex, channel)
+		go fc.asyncRead(directory, file.Name())
 	}
-	wg.Wait()
-	close(channel)
-	return *indexMap, nil
+
+	fc.Wg.Wait()
+	close(fc.dataChan)
+
+	return &indexMap, nil
 }
 
-func asyncRead(wg *sync.WaitGroup, path string, file os.FileInfo, mutex *sync.Mutex, channel chan index.StraightIndex) {
-	defer wg.Done()
-	text, err := ioutil.ReadFile(path + "/" + file.Name())
-	checkError(err)
+func (fc *FileControl) listen(indexMap *index.InvMap) {
 
-	info := index.StraightIndex{
-		Filename: strings.TrimRight(file.Name(), ".txt"),
-		Text:     string(text),
-		Wg:       wg,
-		Mutex:    mutex,
+	for input := range fc.dataChan {
+		fc.Wg.Add(1)
+		fc.Mutex.Lock()
+		indexMap.AddToken(input)
+		fc.Mutex.Unlock()
+		fc.Wg.Done()
 	}
-	channel <- info
 }
 
-func WriteMapToFile(inputMap index.InvMap) error {
+//func (fc *FileControl) Listen(ctx context.Context) {
+//	for {
+//		select {
+//		case <-ctx.Done():
+//			return
+//		case wordInfo := <-fc.dataChan:
+//			index.AddToken(wordInfo)
+//		}
+//	}
+//}
+
+func (fc *FileControl) asyncRead(directory string, filename string) {
+	text, err := ioutil.ReadFile(directory + "/" + filename)
+	if err != nil {
+		zl.Err(err).Msg("can not read file")
+	}
+	words := strings.FieldsFunc(string(text), func(r rune) bool {
+		return !unicode.IsLetter(r)
+	})
+	for position, word := range words {
+		token := index.Token{
+			Word:     word,
+			Filename: strings.TrimRight(filename, ".txt"),
+			Position: position,
+		}
+		fc.dataChan <- token
+	}
+
+}
+
+func (fc *FileControl) WriteIndex(indexMap map[string]string) error {
 	file, err := os.Create("out.txt")
 	if err != nil {
 		return err
 	}
-
-	for key, value := range inputMap {
-		strSlice := index.GetDocStrSlice(value)
-		_, err := file.WriteString(key + ": {" + strings.Join(strSlice, ",") + "}\n")
-		if err != nil {
-			return err
-		}
-
-	}
-	err = file.Close()
+	defer closeFile(file)
+	indexes, err := json.Marshal(indexMap)
 	if err != nil {
-		return err
+		return fmt.Errorf("can not emcode data %w", err)
 	}
+	if _, err = file.Write(indexes); err != nil {
+		return fmt.Errorf("can not write index %w", err)
+	}
+
 	return nil
 }
 
-func checkError(err error) {
-	if err != nil {
-		zl.Fatal().Err(err)
+func closeFile(f *os.File) {
+	if err := f.Close(); err != nil {
+		zl.Err(err).Msg("can not close file %w")
 	}
 }

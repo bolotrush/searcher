@@ -3,15 +3,22 @@ package index
 import (
 	"errors"
 	"regexp"
-	"sort"
 	"strings"
-	"sync"
-	"unicode/utf8"
+
+	"github.com/kljensen/snowball"
+	"github.com/zoomio/stopwords"
 )
 
-const minWordLength = 2
+type Token struct {
+	Word     string
+	Filename string
+	Position int
+}
 
-var regCompiled = regexp.MustCompile(`[^a-zA-Z_]+`)
+type Index struct {
+	Data     map[string][]WordInfo
+	dataChan chan WordInfo
+}
 
 type WordInfo struct {
 	Filename  string
@@ -20,78 +27,47 @@ type WordInfo struct {
 
 type InvMap map[string][]WordInfo
 
-type StraightIndex struct {
-	Filename string
-	Text     string
-	Mutex    *sync.Mutex
-	Wg       *sync.WaitGroup
-}
-
-func NewInvMap() InvMap {
+func NewInvMap() *InvMap {
 	index := make(InvMap)
-	return index
+	return &index
 }
 
-func (thisMap *InvMap) InvertIndex(inputText string, fileName string) {
-	wordList := PrepareText(inputText)
-	for i, word := range wordList {
-		if index, ok := thisMap.isWordInList(word, fileName); !ok {
-			structure := WordInfo{
-				Filename:  fileName,
-				Positions: []int{},
-			}
-			structure.Positions = append(structure.Positions, i)
-			(*thisMap)[word] = append((*thisMap)[word], structure)
-		} else if index != -1 {
-			(*thisMap)[word][index].Positions = append((*thisMap)[word][index].Positions, i)
+func (inv *InvMap) AddToken(token Token) {
+	word, err := PrepareToken(token.Word)
+	if err != nil {
+		//if there's an error just skip word
+		return
+	}
+	if index, ok := inv.inList(word, token.Filename); ok {
+		(*inv)[word][index].Positions = append((*inv)[word][index].Positions, token.Position)
+	} else {
+		structure := WordInfo{
+			Filename:  token.Filename,
+			Positions: []int{token.Position},
 		}
-
+		(*inv)[word] = append((*inv)[word], structure)
 	}
+
 }
 
-func GetDocStrSlice(slice []WordInfo) []string {
-	outSlice := make([]string, 0)
-	for _, doc := range slice {
-		outSlice = append(outSlice, doc.Filename)
-	}
-	return outSlice
-}
+//func (inv *InvMap) InvertIndex(inputText string, fileName string) {
+//	wordList := PrepareText(inputText)
+//	for i, word := range wordList {
+//		if index, ok := i.inList(word, fileName); ok {
+//			(*inv)[word][index].Positions = append((*inv)[word][index].Positions, i)
+//		} else {
+//			structure := WordInfo{
+//				Filename:  fileName,
+//				Positions: []int{},
+//			}
+//			structure.Positions = append(structure.Positions, i)
+//			(*i)[word] = append((*i)[word], structure)
+//		}
+//	}
+//}
 
-type MatchList struct {
-	Matches  int
-	Filename string
-}
-
-func (thisMap InvMap) Search(rawQuery string) ([]MatchList, error) {
-	var matchesSlice []MatchList
-	var matchesMap = make(map[string]int, 0)
-	query := PrepareText(rawQuery)
-	if len(query) == 0 {
-		return nil, errors.New("wrong query")
-	}
-	for _, word := range query {
-		if fileList, ok := thisMap[word]; ok {
-			for _, fileName := range fileList {
-				matchesMap[fileName.Filename] += len(fileName.Positions)
-			}
-		}
-	}
-	for name, matches := range matchesMap {
-		matchesSlice = append(matchesSlice, MatchList{
-			Matches:  matches,
-			Filename: name,
-		})
-	}
-	if len(matchesSlice) > 0 {
-		sort.Slice(matchesSlice, func(i, j int) bool {
-			return matchesSlice[i].Matches > matchesSlice[j].Matches
-		})
-	}
-	return matchesSlice, nil
-}
-
-func (thisMap InvMap) isWordInList(word string, docId string) (int, bool) {
-	for i, ind := range thisMap[word] {
+func (inv InvMap) inList(word string, docId string) (int, bool) {
+	for i, ind := range inv[word] {
 		if ind.Filename == docId {
 			return i, true
 		}
@@ -99,19 +75,28 @@ func (thisMap InvMap) isWordInList(word string, docId string) (int, bool) {
 	return -1, false
 }
 
+var regCompiled = regexp.MustCompile(`[^a-zA-Z_]+`)
+
 func PrepareText(in string) []string {
-	tokens := cleanText(regCompiled.Split(in, -1))
+	tokens := clean(regCompiled.Split(in, -1))
 	return tokens
 }
 
-func cleanText(inputWords []string) []string {
+func clean(inputWords []string) []string {
 	cleanWords := make([]string, 0)
 	for _, word := range inputWords {
-		if stopWORDS[word] || utf8.RuneCountInString(word) < minWordLength {
+		if stopwords.IsStopWord(word) {
 			continue
 		}
 		word = strings.ToLower(word)
 		cleanWords = append(cleanWords, word)
 	}
 	return cleanWords
+}
+
+func PrepareToken(word string) (string, error) {
+	if stopwords.IsStopWord(word) {
+		return "", errors.New("stop word")
+	}
+	return snowball.Stem(word, "english", true)
 }

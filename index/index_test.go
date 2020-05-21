@@ -34,7 +34,7 @@ func TestInvMap_InvertIndex(t *testing.T) {
 		Positions: []int{1},
 	}}
 	actual := NewInvMap()
-	actual.InvertIndex(in, filename)
+	actual.AddToken(in, filename)
 	if !reflect.DeepEqual(actual, expected) {
 		t.Errorf("%v is not equal to expected %v", actual, expected)
 	}
@@ -79,12 +79,12 @@ func TestInvMap_Search(t *testing.T) {
 
 func TestIsWordInList(t *testing.T) {
 	i := getTestInvMap()
-	actual, _ := i.isWordInList("love", "second")
+	actual, _ := i.inList("love", "second")
 	expected := 1
 	if !reflect.DeepEqual(actual, expected) {
 		t.Errorf("%v is not equal to expected %v", actual, expected)
 	}
-	actual, _ = i.isWordInList("cats", "first")
+	actual, _ = i.inList("cats", "first")
 	expected = 0
 	if !reflect.DeepEqual(actual, expected) {
 		t.Errorf("%v is not equal to expected %v", actual, expected)

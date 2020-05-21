@@ -4,18 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"github.com/bolotrush/searcher/index"
-	"log"
 	"os"
-	_ "strconv"
-	_ "strings"
 
 	"github.com/rs/zerolog"
 
 	"github.com/bolotrush/searcher/models/db"
-
 	"github.com/bolotrush/searcher/models/files"
 
-	"github.com/bolotrush/searcher/interfaces/web"
+	"github.com/bolotrush/searcher/web"
 
 	"github.com/urfave/cli/v2"
 
@@ -154,7 +150,7 @@ func searchWeb(c *cli.Context) error {
 		zl.Fatal().Err(err).Msg("index build")
 		return fmt.Errorf("can't create index %w", err)
 	}
-	log.Println("tut")
+
 	var searcher func(query string) ([]index.MatchList, error)
 	if c.Bool("db") {
 		base, err := db.NewDb(cfg.PgSQL)
