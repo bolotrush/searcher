@@ -29,12 +29,12 @@ func NewFileControl() FileControl {
 	}
 
 }
-func IndexBuild(directory string) (*index.InvMap, error) {
+func IndexBuild(directory string) (index.InvMap, error) {
 
 	indexMap := index.NewInvMap()
 	fc := NewFileControl()
 
-	go fc.listen(indexMap)
+	go fc.listen(&indexMap)
 
 	files, err := ioutil.ReadDir(directory)
 	if err != nil {
@@ -62,17 +62,6 @@ func (fc *FileControl) listen(indexMap *index.InvMap) {
 	}
 }
 
-//func (fc *FileControl) Listen(ctx context.Context) {
-//	for {
-//		select {
-//		case <-ctx.Done():
-//			return
-//		case wordInfo := <-fc.dataChan:
-//			index.AddToken(wordInfo)
-//		}
-//	}
-//}
-
 func (fc *FileControl) asyncRead(directory string, filename string) {
 	text, err := ioutil.ReadFile(directory + "/" + filename)
 	if err != nil {
@@ -92,7 +81,7 @@ func (fc *FileControl) asyncRead(directory string, filename string) {
 
 }
 
-func (fc *FileControl) WriteIndex(indexMap index.InvMap) error {
+func WriteIndex(indexMap index.InvMap) error {
 	file, err := os.Create("out.txt")
 	if err != nil {
 		return err

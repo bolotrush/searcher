@@ -98,12 +98,12 @@ func indexFile(c *cli.Context) error {
 		return errors.New("path to files is not found")
 	}
 
-	indexMap, err := files.IndexBuilder(path)
+	indexMap, err := files.IndexBuild(path)
 	if err != nil {
 		return fmt.Errorf("can't create index %w", err)
 	}
 
-	err = files.WriteMapToFile(indexMap)
+	err = files.WriteIndex(indexMap)
 	if err != nil {
 		return fmt.Errorf("can't create out file %w", err)
 	}
@@ -121,7 +121,7 @@ func searchConsole(c *cli.Context) error {
 		return errors.New("query phrase is not found")
 	}
 
-	indexMap, err := files.IndexBuilder(path)
+	indexMap, err := files.IndexBuild(path)
 	if err != nil {
 		return fmt.Errorf("can't create index %w", err)
 	}
@@ -145,7 +145,7 @@ func searchWeb(c *cli.Context) error {
 	if len(path) == 0 {
 		return errors.New("path to files is empty")
 	}
-	indexMap, err := files.IndexBuilder(path)
+	indexMap, err := files.IndexBuild(path)
 	if err != nil {
 		zl.Fatal().Err(err).Msg("index build")
 		return fmt.Errorf("can't create index %w", err)

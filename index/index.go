@@ -27,9 +27,9 @@ type WordInfo struct {
 
 type InvMap map[string][]WordInfo
 
-func NewInvMap() *InvMap {
+func NewInvMap() InvMap {
 	index := make(InvMap)
-	return &index
+	return index
 }
 
 func (inv *InvMap) AddToken(token Token) {
