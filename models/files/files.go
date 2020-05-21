@@ -34,7 +34,7 @@ func IndexBuild(directory string) (*index.InvMap, error) {
 	indexMap := index.NewInvMap()
 	fc := NewFileControl()
 
-	go fc.listen(&indexMap)
+	go fc.listen(indexMap)
 
 	files, err := ioutil.ReadDir(directory)
 	if err != nil {
@@ -48,7 +48,7 @@ func IndexBuild(directory string) (*index.InvMap, error) {
 	fc.Wg.Wait()
 	close(fc.dataChan)
 
-	return &indexMap, nil
+	return indexMap, nil
 }
 
 func (fc *FileControl) listen(indexMap *index.InvMap) {
