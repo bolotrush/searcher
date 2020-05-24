@@ -22,37 +22,33 @@ func getTestInvMap() InvMap {
 }
 
 func TestInvMap_InvertIndex(t *testing.T) {
-	in := "love cats."
+	//in := "love cats."
 	filename := "filename"
+	in := Token{
+		Word:     "love",
+		Filename: filename,
+		Position: 0,
+	}
 	expected := NewInvMap()
 	expected["love"] = []WordInfo{{
 		Filename:  filename,
 		Positions: []int{0},
 	}}
-	expected["cats"] = []WordInfo{{
-		Filename:  filename,
-		Positions: []int{1},
-	}}
 	actual := NewInvMap()
-	actual.AddToken(in, filename)
+	actual.AddToken(in)
 	if !reflect.DeepEqual(actual, expected) {
 		t.Errorf("%v is not equal to expected %v", actual, expected)
+	}
+	in = Token{
+		Word:     "love",
+		Filename: filename,
+		Position: 2,
 	}
 	expected["love"] = []WordInfo{{
 		Filename:  filename,
-		Positions: []int{0, 2, 3},
+		Positions: []int{0, 2},
 	}}
-	actual = NewInvMap()
-	actual.InvertIndex("love cats love love", filename)
-	if !reflect.DeepEqual(actual, expected) {
-		t.Errorf("%v is not equal to expected %v", actual, expected)
-	}
-}
-
-func TestGetDocStrSlice(t *testing.T) {
-	in := []WordInfo{{Filename: "first_text"}, {Filename: "second_text"}}
-	expected := []string{"first_text", "second_text"}
-	actual := GetDocStrSlice(in)
+	actual.AddToken(in)
 	if !reflect.DeepEqual(actual, expected) {
 		t.Errorf("%v is not equal to expected %v", actual, expected)
 	}
@@ -68,10 +64,7 @@ func TestInvMap_Search(t *testing.T) {
 		Filename: "second",
 	}}
 	i := getTestInvMap()
-	actual, err := i.Search(in)
-	if err != nil {
-		t.Errorf("err not expected")
-	}
+	actual := i.Search(in)
 	if !reflect.DeepEqual(actual, expected) {
 		t.Errorf("%v is not equal to expected %v", actual, expected)
 	}
@@ -79,12 +72,12 @@ func TestInvMap_Search(t *testing.T) {
 
 func TestIsWordInList(t *testing.T) {
 	i := getTestInvMap()
-	actual, _ := i.inList("love", "second")
+	actual, _ := i.getIndex("love", "second")
 	expected := 1
 	if !reflect.DeepEqual(actual, expected) {
 		t.Errorf("%v is not equal to expected %v", actual, expected)
 	}
-	actual, _ = i.inList("cats", "first")
+	actual, _ = i.getIndex("cats", "first")
 	expected = 0
 	if !reflect.DeepEqual(actual, expected) {
 		t.Errorf("%v is not equal to expected %v", actual, expected)
@@ -93,17 +86,18 @@ func TestIsWordInList(t *testing.T) {
 
 func TestPrepareText(t *testing.T) {
 	in := "I like 254 cats, they are AWESOME!! !"
-	expected := []string{"like", "cats", "awesome"}
+	expected := []string{"cat", "awesom"}
 	actual := PrepareText(in)
 	if !reflect.DeepEqual(actual, expected) {
 		t.Errorf("%v is not equal to expected %v", actual, expected)
 	}
 }
 
-func TestCleanText(t *testing.T) {
-	in := []string{"I", "like", "cats", "they", "are", "AWESOME"}
-	expected := []string{"like", "cats", "awesome"}
-	actual := cleanText(in)
+func TestPrepareToken(t *testing.T) {
+	in := "embarrassment"
+	expected := "embarrass"
+	actual, _ := prepareToken(in)
+
 	if !reflect.DeepEqual(actual, expected) {
 		t.Errorf("%v is not equal to expected %v", actual, expected)
 	}

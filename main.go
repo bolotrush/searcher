@@ -3,31 +3,27 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/bolotrush/searcher/index"
+	"github.com/bolotrush/searcher/models/db"
 	"os"
 
-	"github.com/rs/zerolog"
-
-	"github.com/bolotrush/searcher/models/db"
+	"github.com/bolotrush/searcher/config"
 	"github.com/bolotrush/searcher/models/files"
-
 	"github.com/bolotrush/searcher/web"
+	"github.com/rs/zerolog"
 
 	"github.com/urfave/cli/v2"
 
 	zl "github.com/rs/zerolog/log"
-
-	"github.com/bolotrush/searcher/config"
 )
 
 var cfg config.Config
 
 func main() {
-	cfg, err := config.Load()
+	var err error
+	cfg, err = config.Load()
 	if err != nil {
 		zl.Fatal().Err(err).Msg("can not load configs")
 	}
-
 	loglevel, err := zerolog.ParseLevel(cfg.LogLevel)
 	if err != nil {
 		zl.Fatal().Err(err).Msg("can not parse log level")
@@ -38,9 +34,8 @@ func main() {
 		Name:  "Searcher",
 		Usage: "The app searches docs using inverted index and find the best match",
 	}
-	pathFlag := &cli.StringFlag{
-		Name:     "path",
-		Aliases:  []string{"p"},
+	dirFlag := &cli.StringFlag{
+		Name:     "dir",
 		Usage:    "Path to files directory",
 		Required: true,
 	}
@@ -49,18 +44,16 @@ func main() {
 			Name:    "file",
 			Aliases: []string{"f"},
 			Usage:   "Saves index to file",
-			Flags:   []cli.Flag{pathFlag},
+			Flags:   []cli.Flag{dirFlag},
 			Action:  indexFile,
 		}, {
-			Name:    "search",
-			Aliases: []string{"s"},
-			Usage:   "Reads query and search files",
-			Flags:   []cli.Flag{pathFlag},
+			Name:  "search",
+			Usage: "Reads query and search files",
+			Flags: []cli.Flag{dirFlag},
 			Subcommands: []*cli.Command{
 				{
-					Name:    "console",
-					Aliases: []string{"c"},
-					Usage:   "Searches index in console",
+					Name:  "console",
+					Usage: "Searches index in console",
 					Flags: []cli.Flag{
 						&cli.StringFlag{
 							Name:     "query",
@@ -71,9 +64,8 @@ func main() {
 					},
 					Action: searchConsole,
 				}, {
-					Name:    "web",
-					Aliases: []string{"w"},
-					Usage:   "Creates web server for search using http",
+					Name:  "web",
+					Usage: "Creates web server for search using http",
 					Flags: []cli.Flag{
 						&cli.BoolFlag{
 							Name:  "db",
@@ -88,48 +80,29 @@ func main() {
 
 	err = app.Run(os.Args)
 	if err != nil {
-		zl.Fatal().Err(err)
+		zl.Fatal().Err(err).Msg("app run error")
 	}
 }
 
 func indexFile(c *cli.Context) error {
-	path := c.String("path")
-	if len(path) == 0 {
-		return errors.New("path to files is not found")
-	}
-
-	indexMap, err := files.IndexBuild(path)
+	inPath := c.String("dir")
+	indexMap, err := files.IndexBuild(inPath)
 	if err != nil {
 		return fmt.Errorf("can't create index %w", err)
 	}
-
-	err = files.WriteIndex(indexMap)
-	if err != nil {
-		return fmt.Errorf("can't create out file %w", err)
-	}
-	return nil
+	return files.WriteIndex(indexMap)
 }
 
 func searchConsole(c *cli.Context) error {
-	path := c.String("path")
-	if len(path) == 0 {
-		return errors.New("path to files is not found")
-	}
-
+	path := c.String("dir")
 	query := c.String("query")
-	if len(path) == 0 {
-		return errors.New("query phrase is not found")
-	}
 
 	indexMap, err := files.IndexBuild(path)
 	if err != nil {
 		return fmt.Errorf("can't create index %w", err)
 	}
 
-	matches, err := indexMap.Search(query)
-	if err != nil {
-		return fmt.Errorf("error while searching %w", err)
-	}
+	matches := indexMap.Search(query)
 	if len(matches) > 0 {
 		for i, match := range matches {
 			fmt.Printf("%d) %s: matches - %d\n", i+1, match.Filename, match.Matches)
@@ -141,34 +114,34 @@ func searchConsole(c *cli.Context) error {
 }
 
 func searchWeb(c *cli.Context) error {
-	path := c.String("path")
+	path := c.String("dir")
 	if len(path) == 0 {
 		return errors.New("path to files is empty")
 	}
 	indexMap, err := files.IndexBuild(path)
 	if err != nil {
-		zl.Fatal().Err(err).Msg("index build")
 		return fmt.Errorf("can't create index %w", err)
 	}
 
-	var searcher func(query string) ([]index.MatchList, error)
+	var searcher web.SearchFunc
 	if c.Bool("db") {
 		base, err := db.NewDb(cfg.PgSQL)
 		if err != nil {
 			return fmt.Errorf("error on creating db %w", err)
 		}
-
 		defer base.Close()
+
 		if err := base.WriteIndex(indexMap); err != nil {
 			return fmt.Errorf("error on db index writing %w", err)
 		}
-		searcher = base.GetMatches
+		searcher = base.Search
 	} else {
 		searcher = indexMap.Search
 	}
+
 	server, err := web.NewServer(cfg.Listen, searcher)
 	if err != nil {
-		return fmt.Errorf("can't create server %w", err)
+		return fmt.Errorf("can't create server: %w", err)
 	}
 	return server.Run()
 }

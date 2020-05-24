@@ -11,15 +11,17 @@ import (
 	zl "github.com/rs/zerolog/log"
 )
 
+type SearchFunc func(query string) []index.MatchList
+
 type Server struct {
 	server         http.Server
 	index          index.InvMap
 	startTemplate  *template.Template
 	searchTemplate *template.Template
-	searchFunc     func(query string) ([]index.MatchList, error)
+	searcher       SearchFunc
 }
 
-func NewServer(addr string, searcher func(query string) ([]index.MatchList, error)) (*Server, error) {
+func NewServer(addr string, search SearchFunc) (*Server, error) {
 	if addr == "" {
 		return nil, errors.New("incorrect address")
 	}
@@ -34,7 +36,7 @@ func NewServer(addr string, searcher func(query string) ([]index.MatchList, erro
 	s := &Server{
 		startTemplate:  startHTML,
 		searchTemplate: searchHTML,
-		searchFunc:     searcher,
+		searcher:       search,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.startHandler)
@@ -61,24 +63,23 @@ func (s *Server) searchHandler(w http.ResponseWriter, r *http.Request) {
 	if query == "" {
 		fmt.Fprintln(w, "Wrong query")
 	}
-	result, err := s.searchFunc(query)
-	if err != nil {
-		zl.Error().Err(err).Msg("error while searching")
-		return
-	}
-	if len(result) == 0 {
+	result := s.searcher(query)
+
+	if len(result) > 0 {
+		err := s.searchTemplate.Execute(w, struct {
+			Result []index.MatchList
+			Query  string
+		}{
+			Result: result,
+			Query:  query,
+		})
+		if err != nil {
+			zl.Error().Err(err).Msg("can not render template")
+		}
+	} else {
 		fmt.Fprintln(w, "There's no results :(")
 	}
-	err = s.searchTemplate.Execute(w, struct {
-		Result []index.MatchList
-		Query  string
-	}{
-		Result: result,
-		Query:  query,
-	})
-	if err != nil {
-		zl.Error().Err(err).Msg("can not render template")
-	}
+
 }
 
 func (s *Server) startHandler(w http.ResponseWriter, r *http.Request) {

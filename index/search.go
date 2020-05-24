@@ -1,7 +1,6 @@
 package index
 
 import (
-	"errors"
 	"sort"
 )
 
@@ -10,13 +9,12 @@ type MatchList struct {
 	Filename string
 }
 
-func (inv InvMap) Search(rawQuery string) ([]MatchList, error) {
+func (inv InvMap) Search(rawQuery string) []MatchList {
 	var matchesSlice []MatchList
 	var matchesMap = make(map[string]int, 0)
+
 	query := PrepareText(rawQuery)
-	if len(query) == 0 {
-		return nil, errors.New("wrong query")
-	}
+
 	for _, word := range query {
 		if fileList, ok := inv[word]; ok {
 			for _, fileName := range fileList {
@@ -30,18 +28,9 @@ func (inv InvMap) Search(rawQuery string) ([]MatchList, error) {
 			Filename: name,
 		})
 	}
-	if len(matchesSlice) > 0 {
-		sort.Slice(matchesSlice, func(i, j int) bool {
-			return matchesSlice[i].Matches > matchesSlice[j].Matches
-		})
-	}
-	return matchesSlice, nil
-}
+	sort.Slice(matchesSlice, func(i, j int) bool {
+		return matchesSlice[i].Matches > matchesSlice[j].Matches
+	})
 
-func GetDocStrSlice(slice []WordInfo) []string {
-	outSlice := make([]string, 0)
-	for _, doc := range slice {
-		outSlice = append(outSlice, doc.Filename)
-	}
-	return outSlice
+	return matchesSlice
 }

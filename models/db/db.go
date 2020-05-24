@@ -1,7 +1,6 @@
 package db
 
 import (
-	"errors"
 	"fmt"
 
 	zl "github.com/rs/zerolog/log"
@@ -43,13 +42,6 @@ func NewDb(config string) (*Base, error) {
 	}, nil
 }
 
-func (b *Base) Close() {
-	err := b.pg.Close()
-	if err != nil {
-		zl.Err(err).Msg("can't close db connection")
-	}
-}
-
 func (b *Base) WriteIndex(index index.InvMap) error {
 	if err := b.clearTables(); err != nil {
 		return fmt.Errorf("can't clear data in db %w", err)
@@ -58,6 +50,32 @@ func (b *Base) WriteIndex(index index.InvMap) error {
 		return fmt.Errorf("can't add indexes into db %w", err)
 	}
 	return nil
+}
+
+func (b *Base) Search(rawQuery string) []index.MatchList {
+	query := index.PrepareText(rawQuery)
+	var result []index.MatchList
+	var occ Occurrence
+	err := b.pg.Model(&occ).
+		ColumnExpr("files.name AS filename").
+		ColumnExpr("count(position) AS matches").
+		Join("JOIN words ON words.id = word_id").
+		Join("JOIN files ON files.id = file_id").
+		WhereIn("words.word IN (?)", query).
+		Group("files.name").
+		Order("matches DESC").
+		Select(&result)
+	if err != nil {
+		zl.Err(err).Msgf("cant get results: %w", err)
+	}
+	return result
+}
+
+func (b *Base) Close() {
+	err := b.pg.Close()
+	if err != nil {
+		zl.Err(err).Msg("can't close db connection")
+	}
 }
 
 func (b *Base) clearTables() error {
@@ -114,26 +132,4 @@ func (b *Base) getTokenID(query []string) ([]int, error) {
 		return nil, fmt.Errorf("can't get token from db %w", err)
 	}
 	return wordIds, nil
-}
-
-func (b *Base) GetMatches(rawQuery string) ([]index.MatchList, error) {
-	query := index.PrepareText(rawQuery)
-	if len(query) == 0 {
-		return nil, errors.New("wrong query")
-	}
-	var result []index.MatchList
-	var occ Occurrence
-	err := b.pg.Model(&occ).
-		ColumnExpr("files.name AS filename").
-		ColumnExpr("count(position) AS matches").
-		Join("JOIN words ON words.id = word_id").
-		Join("JOIN files ON files.id = file_id").
-		WhereIn("words.word IN (?)", query).
-		Group("files.name").
-		Order("matches DESC").
-		Select(&result)
-	if err != nil {
-		return nil, fmt.Errorf("cant get results: %w", err)
-	}
-	return result, nil
 }
